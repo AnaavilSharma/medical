@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # macOS
 .DS_Store
 
@@ -20,3 +21,7 @@ build/
 # Env files
 .env
 .env.local
+=======
+med_frontend/.git
+
+>>>>>>> f0bb9b16 (Update .DS_Store and .gitignore)
