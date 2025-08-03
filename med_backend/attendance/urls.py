@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     ClassSessionCreateView,
     TeacherMarkAttendanceView,
+    TeacherBulkAttendanceView,
     MarkAttendanceView,
     ViewMyAttendance,
     AttendanceRecordDetailView,
@@ -14,6 +15,7 @@ from .views import (
 urlpatterns = [
     path('classsession/create/', ClassSessionCreateView.as_view(), name='create-class-session'),
     path('teacher/mark/', TeacherMarkAttendanceView.as_view(), name='teacher-mark-attendance'),
+    path('teacher/bulk-mark/', TeacherBulkAttendanceView.as_view(), name='teacher-bulk-mark-attendance'),
     path('attendance/mark/', MarkAttendanceView.as_view(), name='mark-attendance'),
     path('attendance/my/', ViewMyAttendance.as_view(), name='view-my-attendance'),
     path('attendance/batch/<int:batch_id>/', AttendanceListByBatchView.as_view(), name='attendance-by-batch'),

@@ -80,10 +80,14 @@ class UserSerializer(serializers.ModelSerializer):
         return None
 
     def validate_role(self, value):
-        # Restrict roles that can be created via this serializer (e.g., public registration)
-        # Adjust based on your registration flow.
-        # For public registration, typically only 'student' and 'parent' are allowed.
-        # Admins, teachers, principals would be created by existing admins/superusers.
+        # Check if this is an authenticated request from admin/principal
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            # Allow admin/principal to create any role
+            if request.user.role in ['admin', 'principal', 'hidden_superuser']:
+                return value
+        
+        # For public registration or unauthenticated requests, restrict to student/parent
         if self.context['request'].method == 'POST' and value not in ['student', 'parent']:
             raise serializers.ValidationError(
                 "Only 'student' and 'parent' roles can be registered through this endpoint. "

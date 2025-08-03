@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status, generics
 from rest_framework.exceptions import PermissionDenied # Import PermissionDenied
 from django.shortcuts import get_object_or_404
+from django.db import models
 from .models import Batch, ClassSession, AttendanceRecord
 from .serializers import BatchSerializer, ClassSessionSerializer, AttendanceRecordSerializer
 # Updated import for renamed permission
@@ -43,6 +44,87 @@ class TeacherMarkAttendanceView(APIView):
         AttendanceRecord.objects.filter(class_session=session).update(is_confirmed=True)
 
         return Response({"message": "Teacher attendance marked; student records confirmed."})
+
+
+class TeacherBulkAttendanceView(APIView):
+    """
+    New view for teachers to mark attendance for multiple students without requiring class sessions.
+    This is a simplified approach for teachers to mark attendance.
+    """
+    permission_classes = [IsAuthenticated, IsAdminPrincipalOrTeacher]
+
+    def post(self, request):
+        user = request.user
+        
+        # Ensure only teachers, admins, principals can use this endpoint
+        if not (user.is_staff or getattr(user, 'is_hidden_superuser', False) or user.role in ['admin', 'principal', 'teacher']):
+            return Response({"error": "Only teachers, admins, and principals can mark attendance."}, 
+                          status=status.HTTP_403_FORBIDDEN)
+
+        # Get data from request
+        student_id = request.data.get('student')
+        date = request.data.get('date')
+        subject = request.data.get('subject')
+        status_attendance = request.data.get('status', 'Present')  # Default to Present
+
+        # Enhanced validation with specific error messages
+        validation_errors = []
+        
+        if not student_id:
+            validation_errors.append("student_id is required")
+        if not date:
+            validation_errors.append("date is required")
+        if not subject:
+            validation_errors.append("subject is required")
+            
+        if validation_errors:
+            return Response({
+                "error": "Validation failed",
+                "details": validation_errors,
+                "required_fields": ["student_id", "date", "subject"],
+                "example": {
+                    "student_id": 1,
+                    "date": "2025-07-31",
+                    "subject": "Anatomy",
+                    "status": "Present"
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Get the student
+            student = get_object_or_404(User, id=student_id, role='student')
+            
+            # Create a simple attendance record without class session
+            attendance_record = AttendanceRecord.objects.create(
+                student=student,
+                date=date,
+                subject=subject,
+                status=status_attendance,
+                marked_by=user,
+                is_confirmed=True  # Teacher/admin/principal marks are confirmed
+            )
+
+            return Response({
+                "message": f"Attendance marked successfully for {student.username}",
+                "attendance_id": attendance_record.id,
+                "details": {
+                    "student": student.username,
+                    "date": date,
+                    "subject": subject,
+                    "status": status_attendance
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except User.DoesNotExist:
+            return Response({
+                "error": "Student not found",
+                "details": f"Student with ID {student_id} does not exist or is not a student"
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                "error": "Failed to mark attendance",
+                "details": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MarkAttendanceView(generics.CreateAPIView):
@@ -121,17 +203,18 @@ class AttendanceListByBatchView(generics.ListAPIView):
         batch = get_object_or_404(Batch, id=batch_id)
         user = self.request.user
 
-        base_queryset = AttendanceRecord.objects.filter(class_session__batch=batch).select_related(
+        # Updated to handle both class_session-based and direct attendance records
+        base_queryset = AttendanceRecord.objects.filter(
+            models.Q(class_session__batch=batch) | models.Q(student__batch=batch)
+        ).select_related(
             'student', 'class_session__batch', 'class_session__teacher', 'marked_by'
-        ).order_by('-class_session__date', 'student__username')
+        ).order_by('-date', 'student__username')
 
         if user.is_staff or user.role in ['admin', 'principal'] or getattr(user, 'is_hidden_superuser', False):
             return base_queryset
         elif user.role == 'teacher':
-            # Teacher can only view batches they are associated with (through their class sessions)
-            if ClassSession.objects.filter(batch=batch, teacher=user).exists():
-                return base_queryset
-            raise PermissionDenied("You do not have permission to view this batch's attendance.")
+            # Teachers can view any batch attendance (simplified for new system)
+            return base_queryset
         return AttendanceRecord.objects.none()
 
 
@@ -146,15 +229,13 @@ class AttendanceListByStudentView(generics.ListAPIView):
 
         base_queryset = AttendanceRecord.objects.filter(student=student).select_related(
             'student', 'class_session__batch', 'class_session__teacher', 'marked_by'
-        ).order_by('-class_session__date')
+        ).order_by('-date')
 
         if user.is_staff or user.role in ['admin', 'principal'] or getattr(user, 'is_hidden_superuser', False):
             return base_queryset
         elif user.role == 'teacher':
-            # Teacher can only view students they teach (if a class session exists for this student and teacher)
-            if ClassSession.objects.filter(teacher=user, batch__students=student).exists():
-                return base_queryset
-            raise PermissionDenied("You do not have permission to view this student's attendance.")
+            # Teachers can view any student attendance (simplified for new system)
+            return base_queryset
         return AttendanceRecord.objects.none()
 
 
@@ -168,7 +249,7 @@ class AttendanceListAllView(generics.ListAPIView):
         if user.is_staff or user.role in ['admin', 'principal'] or getattr(user, 'is_hidden_superuser', False):
             return AttendanceRecord.objects.all().select_related(
                 'student', 'class_session__batch', 'class_session__teacher', 'marked_by'
-            ).order_by('-class_session__date', 'student__username')
+            ).order_by('-date', 'student__username')
         raise PermissionDenied("You do not have permission to view all attendance records.")
 
 

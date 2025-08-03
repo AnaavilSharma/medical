@@ -1,12 +1,16 @@
 // src/LoginPage.js
 import React, { useState, useContext } from 'react';
 // Import AppContext from App.js. This allows LoginPage to access the global state.
-import { AppContext } from './App'; 
+import { AppContext } from './App';
+import { ThemeContext } from './App'; 
 
 const LoginPage = () => {
     // Destructure setCurrentUser and setCurrentPage from AppContext
     // These functions are passed down from the main App component via the context provider.
     const { setCurrentUser, setCurrentPage } = useContext(AppContext);
+    
+    // Get dark mode context
+    const { isDarkMode } = useContext(ThemeContext);
 
     // State variables to hold form input values
     const [username, setUsername] = useState('');
@@ -87,8 +91,8 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-            <div className="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full text-center">
+        <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <div className={`p-8 rounded-xl shadow-2xl max-w-sm w-full text-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
                 {/* MAMC Logo/Image */}
                 <img
                     src="/_api/content/uploaded:image_f6886c.png-61901599-c37e-4375-b24b-85b653820377"
@@ -100,7 +104,7 @@ const LoginPage = () => {
                     }}
                 />
 
-                <h2 className="text-3xl font-extrabold text-gray-900 mb-8">MAMC Portal</h2>
+                <h2 className={`text-3xl font-extrabold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-8`}>MAMC Portal</h2>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-y-5">
                     {/* Username Input */}
@@ -110,7 +114,11 @@ const LoginPage = () => {
                         placeholder="Username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                        className={`w-full px-4 py-3 border rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 ${
+                            isDarkMode 
+                                ? 'border-gray-600 bg-gray-700 text-white' 
+                                : 'border-gray-300 bg-white text-gray-900'
+                        }`}
                         required
                     />
 
@@ -121,7 +129,11 @@ const LoginPage = () => {
                         placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                        className={`w-full px-4 py-3 border rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 ${
+                            isDarkMode 
+                                ? 'border-gray-600 bg-gray-700 text-white' 
+                                : 'border-gray-300 bg-white text-gray-900'
+                        }`}
                         required
                     />
 
@@ -130,15 +142,19 @@ const LoginPage = () => {
                         id="role"
                         value={role}
                         onChange={(e) => setRole(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg bg-white appearance-none cursor-pointer focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                        className={`w-full px-4 py-3 border rounded-lg text-lg appearance-none cursor-pointer focus:ring-blue-500 focus:border-blue-500 transition duration-200 ${
+                            isDarkMode 
+                                ? 'border-gray-600 bg-gray-700 text-white' 
+                                : 'border-gray-300 bg-white text-gray-900'
+                        }`}
                         required
                     >
-                        <option value="" disabled>Select Your Role</option>
-                        <option value="admin">Admin</option>
-                        <option value="student">Student</option>
-                        <option value="parent">Parent</option>
-                        <option value="teacher">Teacher</option>
-                        <option value="principal">Principal</option>
+                        <option value="" disabled className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Select Your Role</option>
+                        <option value="admin" className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Admin</option>
+                        <option value="student" className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Student</option>
+                        <option value="parent" className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Parent</option>
+                        <option value="teacher" className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Teacher</option>
+                        <option value="principal" className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>Principal</option>
                     </select>
 
                     {/* Login Button */}
@@ -154,9 +170,9 @@ const LoginPage = () => {
                 {loginMessage.text && (
                     <div
                         className={`mt-6 p-4 rounded-lg text-left ${
-                            loginMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' :
-                            loginMessage.type === 'error'   ? 'bg-red-100 text-red-800 border border-red-300' :
-                                                              'bg-blue-100 text-blue-800 border border-blue-300'
+                            loginMessage.type === 'success' ? (isDarkMode ? 'bg-green-900 text-green-200 border border-green-600' : 'bg-green-100 text-green-800 border border-green-300') :
+                            loginMessage.type === 'error'   ? (isDarkMode ? 'bg-red-900 text-red-200 border border-red-600' : 'bg-red-100 text-red-800 border border-red-300') :
+                                                              (isDarkMode ? 'bg-blue-900 text-blue-200 border border-blue-600' : 'bg-blue-100 text-blue-800 border border-blue-300')
                         }`}
                     >
                         {loginMessage.text}

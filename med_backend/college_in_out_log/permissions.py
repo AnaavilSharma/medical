@@ -13,7 +13,7 @@ class IsAdminPrincipalOrHiddenSuperuser(BasePermission):
         if user.is_staff:  # Admin and Django superusers
             return True
         
-        if getattr(user, 'role', None) == 'principal':
+        if getattr(user, 'role', None) in ['admin', 'principal']:
             return True
 
         if getattr(user, 'is_hidden_superuser', False):

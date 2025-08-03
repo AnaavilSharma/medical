@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import TimetableImage, ClassSchedule # Import new model
+from .models import TimetableImage, ClassSchedule, TimetableFile # Import new model
 from users.serializers import UserSimpleSerializer # Import UserSimpleSerializer
 from attendance.models import Batch # For Batch name access in ClassScheduleSerializer
 
@@ -26,6 +26,61 @@ class ClassScheduleSerializer(serializers.ModelSerializer):
         # Add the 'time' field as requested by frontend, combining start and end time
         representation['time'] = f"{instance.start_time.strftime('%H:%M')} - {instance.end_time.strftime('%H:%M')}"
         return representation
+
+
+class TimetableFileSerializer(serializers.ModelSerializer):
+    """
+    Serializer for TimetableFile model, supporting multiple file formats (images, PDFs, Excel files).
+    """
+    uploaded_by = UserSimpleSerializer(read_only=True)
+    file_url = serializers.SerializerMethodField()
+    batch_name = serializers.CharField(source='batch.name', read_only=True)
+    file_extension = serializers.CharField(source='get_file_extension', read_only=True)
+    file_size = serializers.CharField(source='get_file_size', read_only=True)
+
+    class Meta:
+        model = TimetableFile
+        fields = [
+            'id', 'batch', 'batch_name', 'term', 'effective_date', 'file', 'file_url',
+            'file_type', 'title', 'description', 'uploaded_by', 'uploaded_at',
+            'is_active', 'file_extension', 'file_size'
+        ]
+        read_only_fields = ['uploaded_by', 'uploaded_at', 'file_url', 'batch_name', 'file_extension', 'file_size']
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and hasattr(obj.file, 'url'):
+            return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+        return None
+
+    def create(self, validated_data):
+        # Automatically assign the logged-in user as the uploader
+        validated_data['uploaded_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+    def validate_file(self, value):
+        """
+        Validate file type and size
+        """
+        if value:
+            # Check file size (max 10MB)
+            if value.size > 10 * 1024 * 1024:  # 10MB
+                raise serializers.ValidationError("File size must be less than 10MB")
+            
+            # Check file extension
+            allowed_extensions = {
+                'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp'],
+                'pdf': ['.pdf'],
+                'excel': ['.xls', '.xlsx']
+            }
+            
+            file_extension = value.name.lower()
+            if not any(file_extension.endswith(ext) for extensions in allowed_extensions.values() for ext in extensions):
+                raise serializers.ValidationError(
+                    "File must be an image (JPG, PNG, GIF, BMP), PDF, or Excel file (XLS, XLSX)"
+                )
+        
+        return value
 
 
 class TimetableImageSerializer(serializers.ModelSerializer):

@@ -8,6 +8,13 @@ from .views import (
     LibraryEntryView,
     LibraryExitView,
     MyLibraryAttendanceView,
+    # Admin/Principal views
+    AllBooksView,
+    AddBookView,
+    UpdateBookView,
+    DeleteBookView,
+    AllBorrowedBooksView,
+    BookBorrowersView,
 )
 
 urlpatterns = [
@@ -17,6 +24,14 @@ urlpatterns = [
     path('books/return/', ReturnBookView.as_view(), name='return-book'),
     path('books/my/', MyBorrowedBooksView.as_view(), name='my-borrowed-books'),
     path('books/search/', SearchBooksView.as_view(), name='search-books'),
+
+    # Admin/Principal library management routes
+    path('admin/books/all/', AllBooksView.as_view(), name='all-books'),
+    path('admin/books/add/', AddBookView.as_view(), name='add-book'),
+    path('admin/books/<int:book_id>/update/', UpdateBookView.as_view(), name='update-book'),
+    path('admin/books/<int:book_id>/delete/', DeleteBookView.as_view(), name='delete-book'),
+    path('admin/books/borrowed/', AllBorrowedBooksView.as_view(), name='all-borrowed-books'),
+    path('admin/books/<int:book_id>/borrowers/', BookBorrowersView.as_view(), name='book-borrowers'),
 
     # Attendance routes
     path('attendance/entry/', LibraryEntryView.as_view(), name='library-entry'),

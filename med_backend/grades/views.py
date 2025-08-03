@@ -6,9 +6,10 @@ from rest_framework.exceptions import PermissionDenied # Import PermissionDenied
 from django.shortcuts import get_object_or_404
 from .models import Grade
 from .serializers import GradeSerializer, GradeCreateSerializer
-from .permissions import IsAdminPrincipalOrTeacher # Updated permission import
+from .permissions import IsAdminPrincipalOrTeacher, IsStudentOrParent # Updated permission import
 from users.models import User # For querying User model
 from attendance.models import ClassSession # For teacher permissions with students
+from rest_framework import serializers # Import serializers
 
 
 class AddGradeView(generics.CreateAPIView): # Changed from APIView to generics.CreateAPIView
@@ -17,6 +18,46 @@ class AddGradeView(generics.CreateAPIView): # Changed from APIView to generics.C
     permission_classes = [IsAuthenticated, IsAdminPrincipalOrTeacher]
 
     def perform_create(self, serializer):
+        # Enhanced validation for grade creation
+        data = serializer.validated_data
+        student = data.get('student')
+        teacher = data.get('teacher')
+        marks = data.get('marks')
+        grade = data.get('grade')
+        
+        # Validate marks range
+        if marks is not None and (marks < 0 or marks > 100):
+            raise serializers.ValidationError({
+                "error": "Invalid marks",
+                "details": "Marks must be between 0 and 100",
+                "received_marks": marks,
+                "valid_range": "0-100"
+            })
+        
+        # Validate grade format
+        valid_grades = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F']
+        if grade and grade not in valid_grades:
+            raise serializers.ValidationError({
+                "error": "Invalid grade",
+                "details": f"Grade '{grade}' is not valid",
+                "valid_grades": valid_grades,
+                "received_grade": grade
+            })
+        
+        # Check for duplicate grade entry
+        existing_grade = Grade.objects.filter(
+            student=student,
+            subject=data.get('subject'),
+            date_recorded=data.get('date_recorded')
+        ).first()
+        
+        if existing_grade:
+            raise serializers.ValidationError({
+                "error": "Duplicate grade entry",
+                "details": f"Grade already exists for {student.username} in {data.get('subject')} on {data.get('date_recorded')}",
+                "existing_grade": GradeSerializer(existing_grade).data
+            })
+        
         # Ensure the teacher in the payload matches the current user if role is teacher,
         # or that an admin/principal is performing the action.
         user = self.request.user
@@ -172,3 +213,39 @@ class ParentViewStudentGrades(generics.ListAPIView):
             # Parents can only view grades for their linked child, with prefetching
             return Grade.objects.filter(student=user.child).select_related('student', 'teacher').order_by('-date_recorded')
         raise PermissionDenied("You are not authorized to view student grades.")
+
+
+# NEW VIEW: For viewing grades by batch
+class GradesByBatchView(generics.ListAPIView):
+    serializer_class = GradeSerializer
+    permission_classes = [IsAuthenticated, IsAdminPrincipalOrTeacher]
+
+    def get_queryset(self):
+        batch_id = self.kwargs['batch_id']
+        user = self.request.user
+        
+        # Get grades for students in the specified batch
+        base_queryset = Grade.objects.filter(
+            student__batch__id=batch_id
+        ).select_related('student', 'teacher').order_by('-date_recorded', 'student__username')
+
+        if user.is_staff or user.role in ['admin', 'principal'] or getattr(user, 'is_hidden_superuser', False):
+            return base_queryset
+        elif user.role == 'teacher':
+            # Teachers can view grades for any batch
+            return base_queryset
+        return Grade.objects.none()
+
+
+class StudentGradesListView(generics.ListAPIView):
+    """View for students to see their own grades"""
+    serializer_class = GradeSerializer
+    permission_classes = [IsAuthenticated, IsStudentOrParent]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'student':
+            return Grade.objects.filter(student=user).select_related('student', 'teacher').order_by('-date_recorded')
+        elif user.role == 'parent' and hasattr(user, 'child'):
+            return Grade.objects.filter(student=user.child).select_related('student', 'teacher').order_by('-date_recorded')
+        return Grade.objects.none()

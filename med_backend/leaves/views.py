@@ -5,6 +5,7 @@ from .serializers import LeaveRequestSerializer
 from users.models import User
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied # Import PermissionDenied
+from rest_framework import serializers # Import serializers
 
 
 class IsOwnerOrAdminPrincipalSuperuser(permissions.BasePermission):
@@ -60,6 +61,36 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(user=user).select_related('user')
 
     def perform_create(self, serializer):
+        # Enhanced validation for leave request creation
+        data = serializer.validated_data
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        reason = data.get('reason')
+        
+        # Validate date logic
+        if start_date and end_date and start_date > end_date:
+            raise serializers.ValidationError({
+                "error": "Invalid date range",
+                "details": "Start date cannot be after end date",
+                "start_date": start_date,
+                "end_date": end_date
+            })
+        
+        # Check for overlapping leave requests
+        existing_leaves = LeaveRequest.objects.filter(
+            user=self.request.user,
+            start_date__lte=end_date,
+            end_date__gte=start_date,
+            status__in=['pending', 'approved']
+        )
+        
+        if existing_leaves.exists():
+            raise serializers.ValidationError({
+                "error": "Overlapping leave request",
+                "details": "You already have a pending or approved leave request for this date range",
+                "existing_leaves": LeaveRequestSerializer(existing_leaves, many=True).data
+            })
+        
         # Assign the logged-in user automatically on leave creation
         serializer.save(user=self.request.user)
 
@@ -70,26 +101,42 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         if 'status' in request.data and len(request.data) == 1:
             status_val = request.data['status']
             # Validate status value against defined choices
-            if status_val not in [choice[0] for choice in LeaveRequest.STATUS_CHOICES]:
-                return Response({'detail': f'Invalid status value: {status_val}. Must be one of {", ".join([c[0] for c in LeaveRequest.STATUS_CHOICES])}'}, status=status.HTTP_400_BAD_REQUEST)
+            valid_statuses = [choice[0] for choice in LeaveRequest.STATUS_CHOICES]
+            if status_val not in valid_statuses:
+                return Response({
+                    'error': 'Invalid status value',
+                    'details': f'Status "{status_val}" is not valid',
+                    'valid_statuses': valid_statuses,
+                    'received_status': status_val
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             # Permissions for status update are already handled by IsOwnerOrAdminPrincipalSuperuser.has_object_permission
             instance.status = status_val
             instance.save()
             serializer = self.get_serializer(instance) # Serialize the updated instance
-            return Response(serializer.data)
+            return Response({
+                "message": f"Leave request status updated to {status_val}",
+                "leave_request": serializer.data
+            })
         else:
             # Prevent non-status field updates for non-privileged users
             user = request.user
             if not (user.is_staff or getattr(user, 'is_hidden_superuser', False) or user.role in ['admin', 'principal']):
-                return Response({'detail': 'Only status can be updated by non-privileged users via this endpoint.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    'error': 'Insufficient permissions',
+                    'details': 'Only status can be updated by non-privileged users via this endpoint',
+                    'allowed_actions': ['status_update']
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # For admin/principal/superuser, allow all fields in PATCH (partial update)
             partial = kwargs.pop('partial', False)
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
-            return Response(serializer.data)
+            return Response({
+                "message": "Leave request updated successfully",
+                "leave_request": serializer.data
+            })
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object() # This calls has_object_permission for destroy actions

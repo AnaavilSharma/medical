@@ -33,13 +33,56 @@ class ClassSchedule(models.Model):
         return f"{self.batch.name} - {self.day} {self.start_time.strftime('%H:%M')}-{self.end_time.strftime('%H:%M')}: {self.subject}"
 
 
+class TimetableFile(models.Model):
+    FILE_TYPES = [
+        ('image', 'Image (PNG, JPG, JPEG)'),
+        ('pdf', 'PDF Document'),
+        ('excel', 'Excel File (XLS, XLSX)'),
+    ]
+    
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='timetable_files')
+    term = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., 'Semester 1', 'Annual'")
+    effective_date = models.DateField(blank=True, null=True, help_text="Date from which this timetable is effective")
+    file = models.FileField(upload_to='timetable_files/', help_text="Upload timetable as image, PDF, or Excel file")
+    file_type = models.CharField(max_length=10, choices=FILE_TYPES, default='image')
+    title = models.CharField(max_length=200, blank=True, null=True, help_text="Optional title for the timetable")
+    description = models.TextField(blank=True, null=True, help_text="Optional description")
+    uploaded_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='uploaded_timetables')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True, help_text="Whether this timetable is currently active")
+
+    class Meta:
+        ordering = ['-uploaded_at'] # Order newest first
+
+    def __str__(self):
+        return f"Timetable for {self.batch.name} ({self.term or 'N/A'}) - {self.get_file_type_display()}"
+
+    def get_file_extension(self):
+        """Get the file extension for display purposes"""
+        if self.file:
+            return self.file.name.split('.')[-1].upper()
+        return ''
+
+    def get_file_size(self):
+        """Get file size in human readable format"""
+        if self.file:
+            size = self.file.size
+            for unit in ['B', 'KB', 'MB', 'GB']:
+                if size < 1024.0:
+                    return f"{size:.1f} {unit}"
+                size /= 1024.0
+            return f"{size:.1f} TB"
+        return '0 B'
+
+
+# Keep the old model for backward compatibility
 class TimetableImage(models.Model):
     # Changed from CharField to ForeignKey to Batch model
     batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='timetable_images_uploaded')
     term = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., 'Semester 1', 'Annual'")
     effective_date = models.DateField(blank=True, null=True, help_text="Date from which this timetable is effective")
     image = models.ImageField(upload_to='timetable_images/')
-    uploaded_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='uploaded_timetables')
+    uploaded_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='uploaded_timetables_old')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -49,6 +92,8 @@ class TimetableImage(models.Model):
 
     def __str__(self):
         return f"Timetable Image for {self.batch.name} ({self.term or 'N/A'})"
+
+
 class Subject(models.Model):
     name = models.CharField(max_length=100, unique=True)
 

