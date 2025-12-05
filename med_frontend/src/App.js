@@ -1,10 +1,14 @@
 import React, { useState, createContext, useContext, useCallback, useEffect } from 'react';
-
+//useState: store a component and update data and automatically rerender when the data changes
+//createContext: share data across multiple comps without passing props manually at every level
+//useContext: calling back createcontext
+//useCallback: returns a cached version of a func so that react does not recreate the func on every render
+//useEffect: lets you run the code after component renders(fetch data from API etec etc)
 // Theme Context for dark/light mode
 export const ThemeContext = createContext();
 
 const ThemeProvider = ({ children }) => {
-    const [isDarkMode, setIsDarkMode] = useState(false); // Default to light mode for better visibility
+    const [isDarkMode, setIsDarkMode] = useState(false); // Default to light mode for better visibility (rerender)
     
     const toggleTheme = () => {
         setIsDarkMode(prev => !prev);
